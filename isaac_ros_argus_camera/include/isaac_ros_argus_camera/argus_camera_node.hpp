@@ -76,6 +76,11 @@ protected:
   int mode_;
   int fsync_type_;
   std::string camera_link_frame_name_;
+  bool use_hw_timestamp_;
+
+  // 新增：声明时间戳提取方法
+  builtin_interfaces::msg::Time timestampFromGxfMessage(
+    const nvidia::gxf::Expected<nvidia::gxf::Entity> & msg_entity);
 
 private:
   // Publisher for tf2.

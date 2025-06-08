@@ -84,13 +84,40 @@ void ArgusCameraNode::ArgusImageCallback(
   msg.frame_id = frame_name;
 }
 
+builtin_interfaces::msg::Time ArgusCameraNode::timestampFromGxfMessage(
+  const nvidia::gxf::Expected<nvidia::gxf::Entity> & msg_entity)
+{
+  builtin_interfaces::msg::Time extracted_time;
+  auto gxf_timestamp = msg_entity->get<nvidia::gxf::Timestamp>();
+  if (!gxf_timestamp) {       // Fallback to label 'timestamp'
+    gxf_timestamp = msg_entity->get<nvidia::gxf::Timestamp>("timestamp");
+  }
+  if (gxf_timestamp) {
+    extracted_time.sec = static_cast<int32_t>(
+      gxf_timestamp.value()->acqtime / static_cast<uint64_t>(1e9));
+    extracted_time.nanosec = static_cast<uint32_t>(
+      gxf_timestamp.value()->acqtime % static_cast<uint64_t>(1e9));
+  } else {
+    RCLCPP_WARN(
+      get_logger(),
+      "[ArgusCameraNode] Failed to get timestamp");
+  }
+  return extracted_time;
+}
+
 void ArgusCameraNode::ArgusCameraInfoCallback(
   const gxf_context_t context, nitros::NitrosTypeBase & msg,
   const std::string parent_frame, const std::string child_frame,
   const sensor_msgs::msg::CameraInfo::SharedPtr camera_info)
 {
-  geometry_msgs::msg::TransformStamped transform_stamped;
   auto msg_entity = nvidia::gxf::Entity::Shared(context, msg.handle);
+
+  geometry_msgs::msg::TransformStamped transform_stamped;
+  msg.frame_id = child_frame;
+  transform_stamped.header.frame_id = parent_frame;
+  transform_stamped.child_frame_id = child_frame;
+  // 新增：统一用timestampFromGxfMessage设置时间戳
+  transform_stamped.header.stamp = timestampFromGxfMessage(msg_entity);
 
   // Fill in CameraModel if camera info is provided
   if (camera_info != nullptr) {
@@ -175,26 +202,6 @@ void ArgusCameraNode::ArgusCameraInfoCallback(
     }
   }
 
-  // Populate timestamp information
-  auto gxf_timestamp = msg_entity->get<nvidia::gxf::Timestamp>();
-  if (!gxf_timestamp) {    // Fallback to label 'timestamp'
-    gxf_timestamp = msg_entity->get<nvidia::gxf::Timestamp>("timestamp");
-  }
-  if (gxf_timestamp) {
-    transform_stamped.header.stamp.sec = static_cast<int32_t>(
-      gxf_timestamp.value()->acqtime / static_cast<uint64_t>(1e9));
-    transform_stamped.header.stamp.nanosec = static_cast<uint32_t>(
-      gxf_timestamp.value()->acqtime % static_cast<uint64_t>(1e9));
-  } else {
-    RCLCPP_WARN(
-      get_logger(),
-      "[ArgusCameraNode] Failed to get timestamp");
-  }
-
-  msg.frame_id = child_frame;
-  transform_stamped.header.frame_id = parent_frame;
-  transform_stamped.child_frame_id = child_frame;
-
   // Extract camera extrinsics
   auto cam_pose_rig = msg_entity->get<nvidia::gxf::Pose3D>(GXF_EXTRINSICS_NAME);
   if (!cam_pose_rig) {
@@ -259,6 +266,9 @@ void ArgusCameraNode::postLoadGraphCallback()
     "argus_camera", "nvidia::isaac::ArgusCamera", "mode", mode_);
   getNitrosContext().setParameterInt32(
     "argus_camera", "nvidia::isaac::ArgusCamera", "fsync_type", fsync_type_);
+  // 新增：硬件时间戳参数
+  getNitrosContext().setParameterBool(
+    "argus_camera", "nvidia::isaac::ArgusCamera", "use_hw_timestamp", use_hw_timestamp_);
 }
 
 sensor_msgs::msg::CameraInfo::SharedPtr ArgusCameraNode::loadCameraInfoFromFile(
