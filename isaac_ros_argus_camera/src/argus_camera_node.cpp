@@ -87,22 +87,8 @@ void ArgusCameraNode::ArgusImageCallback(
 builtin_interfaces::msg::Time ArgusCameraNode::timestampFromGxfMessage(
   const nvidia::gxf::Expected<nvidia::gxf::Entity> & msg_entity)
 {
-  builtin_interfaces::msg::Time extracted_time;
-  auto gxf_timestamp = msg_entity->get<nvidia::gxf::Timestamp>();
-  if (!gxf_timestamp) {       // Fallback to label 'timestamp'
-    gxf_timestamp = msg_entity->get<nvidia::gxf::Timestamp>("timestamp");
-  }
-  if (gxf_timestamp) {
-    extracted_time.sec = static_cast<int32_t>(
-      gxf_timestamp.value()->acqtime / static_cast<uint64_t>(1e9));
-    extracted_time.nanosec = static_cast<uint32_t>(
-      gxf_timestamp.value()->acqtime % static_cast<uint64_t>(1e9));
-  } else {
-    RCLCPP_WARN(
-      get_logger(),
-      "[ArgusCameraNode] Failed to get timestamp");
-  }
-  return extracted_time;
+  // 直接返回系统时间（ROS节点当前时间）
+  return this->now();
 }
 
 void ArgusCameraNode::ArgusCameraInfoCallback(
