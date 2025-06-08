@@ -105,6 +105,13 @@ void ArgusCameraNode::ArgusCameraInfoCallback(
   // 新增：统一用timestampFromGxfMessage设置时间戳
   transform_stamped.header.stamp = timestampFromGxfMessage(msg_entity);
 
+  // 打印stamp
+  RCLCPP_INFO(
+    get_logger(),
+    "[ArgusCameraNode] transform_stamped.header.stamp: sec=%u, nanosec=%u",
+    transform_stamped.header.stamp.sec,
+    transform_stamped.header.stamp.nanosec);
+
   // Fill in CameraModel if camera info is provided
   if (camera_info != nullptr) {
     RCLCPP_DEBUG(
